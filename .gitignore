@@ -1,0 +1,24 @@
+.Rbuildignore
+.Rhistory
+# RStudio files
+.Rproj.user/
+.Rproj.user/*
+
+# RData
+.RData
+
+# produced vignettes
+vignettes/*.html
+vignettes/*.pdf
+
+#*.Rproj
+.Rproj.user
+
+tmp
+tmp/*
+
+.Renviron
+.Rproj.user
+.env
+
+
