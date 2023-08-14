@@ -1,0 +1,23 @@
+filtros:
+  label:
+  inputs:
+    - var_viz
+ubicacion:
+  label: Ubicación y tiempo del evento
+  inputs:
+    - deptosId
+    - fechaId
+detalle:
+  label: Detalles del evento
+  inputs:
+    - autorId
+info:
+  label: Información de la víctima
+  inputs:
+    - generoId
+    - cargoId
+
+
+
+
+

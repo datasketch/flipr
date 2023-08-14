@@ -1,440 +1,497 @@
 
 webshot::install_phantomjs(force = FALSE)
-
+library(flip)
+library(httr)
+library(jsonlite)
 library(tidyverse)
-library(dstools)
-
 library(shiny)
-library(hdbase)
-library(hdtable)
-library(dplyr)
-library(purrr)
 library(shinyWidgets)
-library(shinyinvoer)
-library(shinycustomloader)
 library(shinybusy)
-library(shinyjs)
-library(hgchmagic)
-library(reactable)
+library(parmesan)
+library(vctrs)
 library(dsmodules)
+library(hgchmagic) #767c3867535994f1a1fd8c24594d40db3128843d
+library(leaflet.extras)
+library(ltgeo) #dev
 
-library(ltgeo)
-library(dsopts)
-library(stringi)
-
-
-
-dt_table <- function(data, ...){
-  DT::datatable(data)
-}
-
-# x0 <- jsonlite::read_json("https://cms.flip.datasketch.co/api/periodistas-asesinados")
-# x <- x0 |> bind_rows()
-# write_csv(x, "persiodistas-asesinados.csv")
-
-x0 <- read_csv("persiodistas-asesinados.csv",show_col_types = FALSE) |>
-  mutate(year = lubridate::year(fecha_agresion))
-
-autores <- sort(unique(x0$presunto_autor))
-departamentos <- sort(unique(x0$departamento))
-genero <- sort(unique(x0$genero))
-
-date_range <- range(x0$fecha_agresion)
-years <- unique(sort(x0$year))
-
-ui <- fluidPage(
-  # busy_start_up(
-  #   loader = tags$img(
-  #     src = "logos/loading_gris.gif",
-  #     width = 100
-  #   ),
-  #   mode = "manual",
-  #   color = "#435b69",
-  #   background = "#FFF"
-  # ),
+ui <-  fluidPage(
   tags$head(
-    tags$link(rel = "stylesheet", type = "text/css", href = "app.min.css"),
+    tags$link(rel="stylesheet", type="text/css", href="app.min.css"),
     tags$script(src="app.min.js")
   ),
-  div(style = "display:flex;",
-      div(class = "layout-container",
-          div(class = "layout-panels",
-              div(class = "app-container",
-                  div(id = "filter-moe",
-                      class = "panel",
-                      style = "width: 350px;",
-                      div(id="moe-panel_head",
-                          class="panel-header",
-                          p(class="panel-header-title",
-                            "Datos")
-                      ),
-                      div(class = "panel-body",
-                          div(class = "panel-content",
-                              #actionButton("run_inputs", "Aplicar filtros"),
-                              uiOutput("view_as"),
-                              uiOutput("filtros"),
-                              verbatimTextOutput("debug"),
-                              br()
-                          )
-                      )
+  busy_start_up(
+    loader = tags$img(
+      src = "logos/loading_gris.gif",
+      width = 100
+    ),
+    mode = "manual",
+    color = "#435b69",
+    background = "#FFF"
+  ),
+  div(class = "layout-container",
+      div(class = "layout-panels",
+          div(class = "app-container",
+              div(class = "panel top-malibu",
+                  div (class = "panel-body",
+                       uiOutput("controls")
                   ),
-                  div(id = "viz-moe",
-                      class = "panel",
-                      style = "flex-grow: 1; min-width: 630px; max-width: 800px",
-                      div(class = "panel-header",
-                          p(class="panel-header-title",
-                            "Visualización"),
-                          div(class = "head-viz",
-                              uiOutput("viz_icons"),
-                              # uiOutput("opts_ptc"),
-                              # uiOutput("down_data"),
-                              # uiOutput("downloads")
-                          )
-                      ),
-                      div(class = "panel-body",
-                          div(class = "panel-content",
-                              uiOutput("viz_ui"),
-                              br()
-                          )
-                      )
-                  ),
-                  div(id = "detail-moe",
-                      class = "panel",
-                      style = "width: 300px;",
-                      div(id="moe-panel_head",
-                          class="panel-header",
-                          p(class="panel-header-title",
-                            "Detalle")
-                      ),
-                      div(class = "panel-body",
-                          div(class = "panel-content",
-                              # uiOutput("violencia_extra"),
-                              # tableOutput("violencia_tabla"),
-                              # uiOutput("summary")
-                              br()
-                          )
-                      ),
-                      div(class = "panel-footer",
-                          div(class = "footer-logos",
-                              img(src= 'logos/flip.png',
-                                  width = 130, height = 40),
-                              tags$a(
-                                href="https://www.datasketch.co", target="blank",
-                                img(src= 'logos/lg_ds.svg',
-                                    align = "left", width = 100, height = 70))
-                          )
-                      )
+                  div(class="footer",
+                      tags$a(
+                        img(src= 'logos/lg_ds.svg', align = "left", width = 100)))
+              ),
+              div(class = "panel",
+                  div (class = "panel-body",
+                       div(style="flex-grow: 1; min-width: 600px;",
+                           div(class = "head-viz",
+                               div(style = "display:flex;gap:20px;margin-bottom: 20px;align-items: flex-end;",
+                                   "VISUALIZACIÓN",
+                                   uiOutput("viz_icons")
+                               ),
+                               uiOutput("descargas")
+                           )),
+                       div(class = "viz-nucleo",
+                           uiOutput("viz_view")
+                       )
                   )
-
+              ),
+              div(class = "panel",
+                  div (class = "panel-body",
+                       div(style="flex-grow: 1; min-width: 320px;",
+                           div(style = "display:block;",
+                               div(class = "viz-center",
+                                   div(style = "margin: 10px 0px;", "DETALLE"),
+                                   uiOutput("info_click")
+                               )
+                           )
+                       )
+                  )
               )
           )
       )
-  ),
-  dsmodules::showDebug(hosts = c("127.0.0.1", "datasketch.shinyapps.io"))
+  )
 )
 
-server <-  function(input, output, session) {
+
+server <- function(input, output, session) {
 
 
-  par <- list(region = NULL, tematica = NULL, grupo = NULL)
-  url_par <- reactive({
-    url_params(par, session)$inputs
+
+  data <- reactiveValues(info = NULL)
+
+  observe({
+    data$info <- flip:::api_data("https://cms.flip.datasketch.co/api/periodistas-asesinados")
   })
 
-  output$view_as <- renderUI({
+  observe({
+    if (is.null(data$info)) return()
+    Sys.sleep(3)
+    remove_start_up(timeout = 200)
+  })
 
-    radioButtons("view_as", "Ver por:",
-                 c("Departamentos",
-                   #"Género",
-                   "Presuntos autores"),
-                 selected = "Departamentos"
+  var_dic <- reactive({
+
+    data.frame(id = c("departamento", "fecha_agresion",
+                      "presunto_autor",
+                      "genero", "cargo"),
+               label = c("Departamento", "Fecha del asesinato",
+                         "Presunto agresor",
+                         "Género de la víctima", "Cargo o profesión de la víctima"),
+               clasificacion = c("Ubicación y tiempo del evento", "Ubicación y tiempo del evento",
+                                 "Detalles del evento",
+                                 "Información de la víctima", "Información de la víctima"))
+  })
+
+  var_opts <- reactive({
+    req(var_dic())
+    df <- var_dic()
+    organized_list <- lapply(unique(df$clasificacion), function(classif) {
+      subset_df <- df |> filter(clasificacion %in% classif)
+      setNames(as.list(subset_df$id), subset_df$label)
+    })
+    names(organized_list) <- unique(df$clasificacion)
+    organized_list
+  })
+
+  show_deptos <- reactive({
+    req(input$var_viz)
+    input$var_viz != "departamento"
+  })
+
+  fecha_min <- reactive({
+    req(data$info)
+    min(data$info$fecha_agresion, na.rm = T)
+  })
+  fecha_max <- reactive({
+    req(data$info)
+    max(data$info$fecha_agresion, na.rm = T)
+  })
+
+  pickerOpts <- reactive({
+    list(
+      `actions-box` = TRUE,
+      `deselect-all-text` = "Ninguno",
+      `select-all-text` = "Todos",
+      title = "Todos"
     )
   })
 
-  output$filtros <- renderUI({
+  data_fecha_filter <- reactive({
+    req(data$info)
+    df <- data$info
+    if (!is.null(input$fechaId)) {
+      df <- dsdataprep:::filter_ranges(df, range = input$fechaId, by = "fecha_agresion")
+    }
+    df
+  })
 
+  deptos_opts <- reactive({
+    req(data_fecha_filter())
+    sort(unique(data_fecha_filter()$departamento))
+  })
+
+
+  data_depto_filter <- reactive({
+    req(data_fecha_filter())
+    req(input$var_viz)
+    df <- data_fecha_filter()
+    if (input$var_viz != "departamento") {
+      if (!is.null(input$deptosId)) {
+        df <- df |> dplyr::filter(departamento %in% input$deptosId)
+      }
+    }
+
+    df
+  })
+
+
+  genero_opts <- reactive({
+    req(data_depto_filter())
+    c("Todos", sort(unique(data_depto_filter()$genero)))
+  })
+
+  autor_opts <-  reactive({
+    req(data_depto_filter())
+    sort(unique(data_depto_filter()$presunto_autor))
+  })
+
+  cargo_opts <- reactive({
+    req(data_depto_filter())
+    sort(unique(data_depto_filter()$cargo))
+  })
+
+  parmesan <- parmesan_load()
+  parmesan_input <- parmesan_watch(input, parmesan)
+
+  output_parmesan("controls",
+                  input = input, output = output, session = session,
+                  env = environment())
+
+
+
+  list_inputs <- reactive({
+    input_genero <- input$generoId
+    if(!is.null(input$generoId)) {
+      if (input$generoId == "Todos") {
+        input_genero <- NULL
+      }
+    }
 
     list(
-      h5("Filtros:"),
-      pickerInput(
-        inputId = "year",
-        label = "Año",
-        choices = years,
-        options = list(
-          `actions-box` = TRUE),
-        multiple = TRUE
-      ),
-      pickerInput(
-        inputId = "departamento",
-        label = "Departamento",
-        choices = departamentos,
-        options = list(
-          `actions-box` = TRUE),
-        multiple = TRUE
-      ),
-      pickerInput(
-        inputId = "autor",
-        label = "Presunto autor",
-        choices = autores,
-        options = list(
-          `actions-box` = TRUE),
-        multiple = TRUE
-      )
+      "presunto_autor" = input$autorId,
+      "genero" = input_genero,
+      "cargo" = input$cargoId
     )
 
   })
 
-
-
-  values <- reactiveValues()
-  observe({
-
-    values$view_as <- input$view_as
-
-    values$year <- as.numeric(input$year)
-    values$departamento <- input$departamento
-    values$departamento <- input$departamento
-    values$autor <- input$autor
-
-    values$viz_active <- input$viz_selection
-
+  dic <- reactive({
+    req(data_depto_filter())
+    data.frame(id = c("presunto_autor", "genero", "cargo"),
+               hdtype = c("Cat", "Cat", "Cat"))
   })
 
+
+  data_filter_gen <- reactive({
+    req(data_depto_filter())
+    if (nrow(data_depto_filter()) == 0) return()
+    ls <- list_inputs()
+    dsdataprep::data_filter(data = data_depto_filter(),
+                            dic = dic(), var_inputs = ls, .id = "id")
+  })
 
 
   data_filter <- reactive({
-    x <- x0
-    if(!is.empty(values$year)){
-      x <- x0 |>
-        filter(year %in% values$year)
+    req(data_filter_gen())
+    if (nrow(data_filter_gen()) == 0) return()
+    df <- data_filter_gen()
+    if (!is.null(input$alertaId)) {
+      if (input$alertaId) {
+        df <- df |> filter(alerta_genero == "Sí")
+      }
     }
-    if(!is.empty(values$departamento)){
-      x <- x0 |>
-        filter(departamento %in% values$departamento)
-    }
-    if(!is.empty(values$autor)){
-      x <- x0 |>
-        filter(presunto_autor %in% values$autor)
-    }
-    x
+    df
   })
 
 
-
-  ### DATAPLOT
-
-  data_plot <- reactive({
-
-    req(values$viz_active)
-    x <- data_filter()
-
-    # If view as Departamentos
-    if(values$view_as == "Departamentos"){
-      # If map
-      if(values$viz_active == "map"){
-        x <- x |>
-          select(departamento) |>
-          summarise(total = n(), .by = "departamento")
-      }
-      # if Bar
-      if(values$viz_active == "bar"){
-        x <- x |>
-          select(departamento) |>
-          summarise(total = n(), .by = "departamento")
-      }
+  data_viz <- reactive({
+    req(input$var_viz)
+    req(data_filter())
+    if (nrow(data_filter()) == 0) return()
+    df <- data_filter()
+    if (input$var_viz == "fecha_agresion") {
+      df <- df |> drop_na(fecha_agresion)
+      df$fecha_agresion <- as.character(df$fecha_agresion)
     }
 
-    # If view as Presuntos autores
-    if(values$view_as == "Presuntos autores"){
-      # if Bar
-      if(values$viz_active == "bar"){
-        x <- x |>
-          select(presunto_autor) |>
-          summarise(total = n(), .by = "presunto_autor")
-      }
-    }
-    x
+    df <- dsdataprep::aggregation_data(data = df,
+                                       agg = "count",
+                                       group_var = input$var_viz,
+                                       percentage = TRUE, percentage_name = "porcentaje")
+    dic <- var_dic() |> filter(id %in% input$var_viz)
+    df$..labels <- paste0(dic$label, ": ", df[[1]], "<br/>
+                         Conteo: ", df[[2]], " (", round(df[[3]], 2), "%)")
+    df
   })
 
 
-  output$debug <- renderPrint({
-
-    str(viz_type())
-    str(viz_params())
-    l <- reactiveValuesToList(values)
-    str(l)
-    # str(data_filter())
-    # str(data_plot())
-
+  posible_viz <- reactive({
+    req(data_viz())
+    if (nrow(data_viz()) == 0) return()
+    viz <- c("bar", "treemap", "table")
+    if ("departamento" %in% names(data_viz())) viz <- c("map", viz)
+    if ("fecha_agresion" %in% names(data_viz())) viz <- c("line", "table")
+    viz
   })
 
-  viz_type <- reactive({
-    if(values$viz_active == "map"){
-      viz_type <- "lt_choropleth"
-    } else if(values$viz_active == "table"){
-      viz_type <- "dt_table"
+  actual_but <- reactiveValues(active = NULL)
+
+  observe({
+    req(posible_viz())
+    if (is.null(input$viz_selection)) return()
+    viz_rec <- posible_viz()
+    if (input$viz_selection %in% viz_rec) {
+      actual_but$active <- input$viz_selection
     } else {
-      type <- "CatNum"
-      viz_type <- paste0("hgch_", values$viz_active, "_", type)
+      actual_but$active <- viz_rec[1]
     }
-    viz_type
+
   })
 
+  output$viz_icons <- renderUI({
+    req(posible_viz())
+    possible_viz <- posible_viz()
+    shinyinvoer::buttonImageInput('viz_selection',
+                                  " ",
+                                  images = possible_viz,
+                                  path = "icons/",
+                                  active = actual_but$active,
+                                  imageStyle = list(shadow = TRUE,
+                                                    borderColor = "#ffffff",
+                                                    padding = "3px"))
 
-  theme_viz <- reactive({
-    opts <- NULL
-    if(values$viz_active == "map"){
+  })
+
+  viz_func <- reactive({
+    if (is.null(actual_but$active)) return()
+    viz_type <- "CatNum"
+    if (actual_but$active == "line")  viz_type <- "DatNum"
+    viz <- paste0("hgchmagic::hgch_", actual_but$active, "_", viz_type)
+    if (actual_but$active == "map") viz <- "ltgeo::lt_choropleth_GnmNum"
+    print(viz)
+    viz
+  })
+
+  title_viz <- reactive({
+    req(data_viz())
+    if (nrow(data_viz()) == 0) return()
+    dic <- var_dic() |> filter(id %in% names(data_viz())[1])
+    title_viz <- paste0("Periodistas asesinados por ", dic$label)
+    title_viz
+  })
+
+  viz_opts <- reactive({
+    if (is.null(actual_but$active)) return()
+    req(data_viz())
+    if (nrow(data_viz()) == 0) return()
+    if (actual_but$active != "map") {
       opts <- list(
-        #title = "Periodistas asesinados",
-        border_color = "#3a3a3a",
-        border_width = 1,
-        na_color = "#f0f0f0",
-        background_color = "#ffffff",
-        # na_label = "Sin&nbsp;Información"
-        na_label = "N/A",
-        tooltip_template = "<b>{total} asesinatos</b><br><i>{departamento}</i>"
+        data = data_viz(),
+        label_wrap = 100,
+        label_wrap_legend = 100,
+        collapse_rows = TRUE,
+        data_labels_show = TRUE,
+        shiny_cursor = "pointer",
+        shiny_clickable = TRUE,
+        data_labels_align = 'middle',
+        title = title_viz(),
+        text_family ='IBM Plex Sans',
+        palette_colors = c("#FF5100", "#FF9A2D", "#FFD35B", "#46B9F3", "#AAEAFF", "#00B18D", "#004286")
+      )
+      if (actual_but$active == "treemap") {
+        opts$data_labels_inside <- TRUE
+      }
+      if (!"anio_mes_agresion" %in% names(data_viz())) {
+        opts$bar_orientation <- "hor"
+        opts$sort <- "desc"
+      }
+    } else {
+      opts <- list(
+        data = data_viz(),
+        map_name = "col_large",
+        collapse_rows = TRUE,
+        map_tiles = "CartoDB",
+        map_zoom_snap = 0.25,
+        map_zoom_delta = 0.25,
+        palette_colors = c("#FFF37A", "#FF5100"),
+        map_min_zoom = 5.25,
+        map_max_zoom = 12
       )
     }
-
-    if(values$view_as == "Presuntos autores"){
-      if(values$viz_active == "bar"){
-        opts <- list(
-          orientation = "hor"
-        )
-      }
-    }
-
+    opts$title_size <- 15
+    opts$text_family <- "Fira Sans"
+    opts$title_family <- "Fira Sans"
     opts
   })
 
-  viz_params <- reactive({
-    opts <- theme_viz()
-    data <- list(
-      data = data_plot()
+
+  viz_down <- reactive({
+    req(data_viz())
+    req(viz_func())
+    suppressWarnings(
+      do.call(eval(parse(text = viz_func())), viz_opts())
     )
-    if(values$viz_active == "map"){
-      viz_params <- list(
-        map_name = "col_departments",
-        var = "total"
+  })
+
+
+
+  output$hgch_viz <- highcharter::renderHighchart({
+    req(actual_but$active)
+    req(data_viz())
+    if (actual_but$active %in% c("table", "map")) return()
+    h <- viz_down() |>
+      hc_legend( verticalAlign = "top" )
+    h
+  })
+
+  output$lflt_viz <- leaflet::renderLeaflet({
+    req(actual_but$active)
+    req(data_viz())
+    if (!actual_but$active %in% c("map")) return()
+    viz_down() |>
+      addControl(title_viz(), position = "topleft", className="map-title") |>
+      leaflet::setView(lng = -74.29, lat = 3.57, 4)
+  })
+
+
+  data_down <- reactive({
+    req(data_filter())
+    if (nrow(data_filter()) == 0) return()
+    df <- data_filter()
+    df <- df[, c("id", "nombre", "apellido","fecha_agresion", "presunto_autor", "sucedio_en_internet",
+                 "tipo_agresion","departamento", "alerta_genero", "genero","cargo")]
+    df
+  })
+
+  output$dt_viz <- DT::renderDataTable({
+    req(actual_but$active)
+    if (actual_but$active != "table") return()
+    req(data_down())
+    df <- data_down()
+    dtable <- DT::datatable(df,
+                            rownames = F,
+                            selection = 'none',
+                            options = list(
+                              language = list(url = '//cdn.datatables.net/plug-ins/1.10.11/i18n/Spanish.json'),
+                              scrollX = T,
+                              fixedColumns = TRUE,
+                              fixedHeader = TRUE,
+                              scrollY = "500px",
+                              autoWidth = TRUE
+                            ))
+    dtable
+  })
+
+  output$viz_view <- renderUI({
+    req(actual_but$active)
+    if (is.null(input$dimension)) return()
+    height_viz <- input$dimension[2] - 130
+    tx <- "No hay información para los filtros seleccionados"
+    if (actual_but$active != "table") {
+      if (is.null(data_viz())) return(tx)
+    }
+
+    viz <- actual_but$active
+    if (viz == "map") {
+      shinycustomloader::withLoader(
+        leaflet::leafletOutput("lflt_viz", height = height_viz),
+        type = "html", loader = "loader4"
+      )
+    } else if (viz == "table") {
+      shinycustomloader::withLoader(
+        DT::dataTableOutput("dt_viz", width = input$dimension[1]-500),
+        type = "html", loader = "loader4"
+      )
+    } else {
+      shinycustomloader::withLoader(
+        highcharter::highchartOutput("hgch_viz", height = height_viz),
+        type = "html", loader = "loader4"
       )
     }
-    if(values$viz_active == "table"){
-      viz_params <- NULL
-    }
-    c(data, viz_params, list(opts = opts))
-  })
-
-
-  hgch_viz <- reactive({
-    hv <- do.call(viz_type(), viz_params())
-    if (!values$viz_active %in%  c("map", "table")) {
-      hv <- hv |> hc_legend(   verticalAlign = "top" )
-      # if (!is.null(index_info())) {
-      #   hv <- hv |>
-      #     hc_caption(text = index_info())
-      # }
-    }
-    hv
-
-  })
-
-  output$hgch_chart <- renderHighchart({
-    if (values$viz_active %in% c("map", "table")) return()
-    req(hgch_viz())
-    hgch_viz()
-
-  })
-
-  output$lt_chart <- renderLeaflet({
-    if (values$viz_active != "map") return()
-    #req(hgch_viz())
-    hgch_viz()
-  })
-
-  output$dt_chart <- DT::renderDataTable({
-    if (values$viz_active != "table") return()
-    #req(hgch_viz())
-    hgch_viz()
   })
 
 
 
-  output$viz_ui <- renderUI({
-    if (is.null(data_plot())) return("No hay información para los filtros seleccionados")
-    #req(values$viz_active)
-    height_viz <- 500
-    if (values$viz_active == "map") {
-      viz <- leaflet::leafletOutput("lt_chart", height = height_viz)
-    } else if(values$viz_active == "table"){
-      viz <- DT::dataTableOutput("dt_chart", height = height_viz)
+  output$descargas <- renderUI({
+    if (is.null(actual_but$active)) return()
+    if (actual_but$active != "table") {
+      dsmodules::downloadImageUI("download_viz", dropdownLabel ="Descargar", formats = c("jpeg", "pdf", "png", "html"), display = "dropdown", text = "Descargar")
     } else {
-      viz <- highchartOutput("hgch_chart", height = height_viz)
+      dsmodules::downloadTableUI("dropdown_table", dropdownLabel = "Descargar", formats = c("csv", "xlsx", "json"), display = "dropdown", text = "Descargar")
     }
-    viz
+  })
 
+  observe({
+    dsmodules::downloadTableServer("dropdown_table", element = reactive(data_down()), formats = c("csv", "xlsx", "json"))
+    dsmodules::downloadImageServer("download_viz", element = reactive(viz_down()), lib = "highcharter", formats = c("jpeg", "pdf", "png", "html"), file_prefix = "plot")
   })
 
 
-  # Defaults
+  click_info <- reactiveValues(id = NULL)
 
-
-  available_viz <- reactive({
-    # if(is.null(input$what_table_input)) return()
-    # if (is.null(data_plot())) return()
-    #viz <- c("map", "bar", "line", "treemap", "table")
-    req(values$view_as)
-
-    str(values$view_as)
-
-    viz <- c("table")
-
-    if(values$view_as == "Departamentos"){
-      viz <- c("map", "bar", "table")
-    } else if(values$view_as == "Presuntos autores"){
-      #viz <- c("bar", "line", "treemap", "table")
-      viz <- c("bar", "table")
-    }
-    viz
+  observeEvent(input$hcClicked, {
+    click_info$id <- gsub("<br/>", " ", input$hcClicked$id)
+  })
+  observe({
+    if (is.null(input$lflt_viz_shape_click)) return()
+    deptos_mapa <- input$lflt_viz_shape_click$id
+    # deptos_mapa[deptos_mapa == "BOGOTA, D.C."] <- "BOGOTA"
+    # deptos_mapa[deptos_mapa == "ARCHIPIELAGO DE SAN ANDRES, PROVIDENCIA Y SANTA CATALINA"] <- toupper("San Andres y Providencia")
+    click_info$id <- deptos_mapa
   })
 
-
-  # hover_viz <- reactive({
-  #   req(available_viz())
-  #   df_av <- data.frame(id = available_viz())
-  #   df <- data.frame(id = c("map", "bar", "line", "pie", "treemap", "table"),
-  #                    label = c("Mapa", "Barras", "Línea", "Pie", "Treemap", "Tabla"))
-  #   df <- df_av |> dplyr::inner_join(df)
-  #   df$label
-  # })
-
-  output$viz_icons <- renderUI({
-    req(available_viz())
-
-    if(values$view_as == "Departamentos"){
-      active <- "map"
-      values$viz_active <- "map"
-    } else if(values$view_as == "Presuntos autores"){
-      active <- "bar"
-      values$viz_active <- "bar"
-    }
-
-    buttonImageInput('viz_selection',
-                     " ",
-                     images = available_viz(),
-                     #tooltips = hover_viz(),
-                     path = 'icons/',
-                     active = active
-    )
-
-    ##
+  observeEvent(list(input$var_viz, input$viz_selection, input$fechaId,
+                    input$deptosId, input$generoId,  input$cargoId), {
+                      click_info$id <- NULL
+                    })
 
 
+  data_click <- reactive({
+    req(click_info$id)
+    req(input$var_viz)
+    req(data_filter())
+    df <-  data_filter()
+    df <- df |>
+      dplyr::filter(!!dplyr::sym(input$var_viz) %in% click_info$id)
 
-
+    df
   })
+
 
 
 
 }
 
+
+
 shinyApp(ui, server)
+
