@@ -172,18 +172,19 @@ height: 30px !important;
   margin: 20px 0px;
 }
 
-.leaflet-touch .leaflet-control-layers, .leaflet-touch .leaflet-bar {
-  float: right;
+.leaflet-control-zoom  {
+  position: fixed !important;
+  right: 33%;
 }
 
 .map-title {
   padding: 0px 8px !important;
-  margin-top: -10% !important;
   font-family: 'IBM Plex Sans';
   font-size: 15px;
   white-space: normal;
   color: rgb(40, 51, 63);
-  font-weight: 700;;
+  font-weight: 700;
+  position: fixed !important;
 }
 
 .dropdown-action-trigger {
