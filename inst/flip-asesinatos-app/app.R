@@ -41,7 +41,7 @@ ui <-  fluidPage(
               ),
               div(class = "panel",
                   div (class = "panel-body",
-                       div(style="flex-grow: 1; min-width: 600px;",
+                       div(style="flex-grow: 1; min-width: 620px;",
                            div(class = "head-viz",
                                div(style = "display:flex;gap:20px;margin-bottom: 20px;align-items: flex-end;",
                                    "VISUALIZACIÓN",
@@ -56,10 +56,11 @@ ui <-  fluidPage(
               ),
               div(class = "panel",
                   div (class = "panel-body",
-                       div(style="flex-grow: 1; min-width: 320px;",
+                       div(style="flex-grow: 1; min-width: 280px;",
                            div(style = "display:block;",
                                div(class = "viz-center",
                                    div(style = "margin: 10px 0px;", "DETALLE"),
+                                  verbatimTextOutput("test"),
                                    uiOutput("info_click")
                                )
                            )
@@ -90,11 +91,11 @@ server <- function(input, output, session) {
 
   var_dic <- reactive({
 
-    data.frame(id = c("departamento", "fecha_agresion",
+    data.frame(id = c("departamento", "anio_mes_agresion",
                       "presunto_autor",
                       "genero", "cargo"),
                label = c("Departamento", "Fecha del asesinato",
-                         "Presunto agresor",
+                         "Presunto autor",
                          "Género de la víctima", "Cargo o profesión de la víctima"),
                clasificacion = c("Ubicación y tiempo del evento", "Ubicación y tiempo del evento",
                                  "Detalles del evento",
@@ -238,9 +239,9 @@ server <- function(input, output, session) {
     req(data_filter())
     if (nrow(data_filter()) == 0) return()
     df <- data_filter()
-    if (input$var_viz == "fecha_agresion") {
+    if (input$var_viz == "anio_mes_agresion") {
       df <- df |> drop_na(fecha_agresion)
-      df$fecha_agresion <- as.character(df$fecha_agresion)
+      #df$fecha_agresion <- as.character(df$fecha_agresion)
     }
 
     df <- dsdataprep::aggregation_data(data = df,
@@ -259,7 +260,7 @@ server <- function(input, output, session) {
     if (nrow(data_viz()) == 0) return()
     viz <- c("bar", "treemap", "table")
     if ("departamento" %in% names(data_viz())) viz <- c("map", viz)
-    if ("fecha_agresion" %in% names(data_viz())) viz <- c("line", "table")
+    if ("anio_mes_agresion" %in% names(data_viz())) viz <- c("line", "table")
     viz
   })
 
@@ -464,8 +465,8 @@ server <- function(input, output, session) {
   observe({
     if (is.null(input$lflt_viz_shape_click)) return()
     deptos_mapa <- input$lflt_viz_shape_click$id
-    # deptos_mapa[deptos_mapa == "BOGOTA, D.C."] <- "BOGOTA"
-    # deptos_mapa[deptos_mapa == "ARCHIPIELAGO DE SAN ANDRES, PROVIDENCIA Y SANTA CATALINA"] <- toupper("San Andres y Providencia")
+    deptos_mapa[deptos_mapa == "BOGOTÁ, D.C."] <- "BOGOTÁ"
+    deptos_mapa[deptos_mapa == "ARCHIPIELAGO DE SAN ANDRES, PROVIDENCIA Y SANTA CATALINA"] <- toupper("San Andres y Providencia")
     click_info$id <- deptos_mapa
   })
 
@@ -477,13 +478,112 @@ server <- function(input, output, session) {
 
   data_click <- reactive({
     req(click_info$id)
+    print(click_info$id)
     req(input$var_viz)
     req(data_filter())
     df <-  data_filter()
+
+    if (actual_but$active == "map") {
+      df$departamento <- toupper(df$departamento)
+    }
+
     df <- df |>
       dplyr::filter(!!dplyr::sym(input$var_viz) %in% click_info$id)
 
     df
+  })
+
+
+  output$info_click <-renderUI({ # reactive({#
+    tx <- HTML("<div class = 'click'>
+               <img src='click/click.svg' class = 'click-img'/><br/>
+               Da <b>clic sobre la visualización</b> <br/> para ver más información.")
+    if (is.null(click_info$id)) return(tx)
+    req(data_click())
+    if (nrow(data_click()) == 0) return("No hay información adicional disponible")
+
+    df <- data_click()
+    df$nombres <- paste0(df$nombre, " ", df$apellido)
+    df$descripcion <- ifelse(!is.na(df$descripcion),
+                             paste0("**id_", df$id, "**", df$descripcion), "sin detalle")
+    data_click <- df |>
+      select(nombres, Fecha = fecha_agresion, Lugar = departamento, `Presunto implicado` = presunto_autor, descripcion)
+    info <- purrr::map(1:nrow(data_click), function(r) {
+      info <- data_click[r, ]
+      htmltools::div(class = "click-p",
+                     htmltools::HTML(paste0(
+                       purrr::map(names(info), function(v) {
+                         tx <- paste0("<div class = 'click-body'><div class = 'click-tl'>",
+                                      v, ":</div> <div class = 'click-info'>",
+                                      info[[v]], "</div>\n                    </div>",
+                                      collapse = "")
+                         if (v == "nombres") {
+                           if (!is.na(info[[v]])) {
+                             tx <- paste0("<div class = 'name-click'>",info[[v]], "</div>")
+                           }else {
+                             tx <- "No identificado"
+                           }
+                         }
+                         if (v == "descripcion") {
+                           if (info[[v]] != "sin detalle") {
+                             id_button <- str_extract(info[[v]], "(?<=\\*\\*).+?(?=\\*\\*)")
+                             tx <- paste0(actionButton(id_button, label = "Descripción"))
+                           } else {
+                             tx <- " "
+                           }
+                         }
+                         tx
+                       }), collapse = "")))
+    })
+    info
+  })
+
+
+  click_desc <- reactiveVal()
+
+  observe({
+    if (is.null(click_info$id)) return()
+    req(data_click())
+    if (nrow(data_click()) == 0) return()
+    df <- data_click() |> drop_na(descripcion)
+    ids <- paste0("id_", df$id)
+    lapply(ids, function(id) {
+      observeEvent(input[[id]], {
+        click_desc(id)
+      })
+    })
+  })
+  #
+  # observeEvent(input$var_viz, {
+  #   click_desc(NULL)
+  # })
+  #
+  #
+  data_modal <- reactive({
+    if (is.null(click_info$id)) return()
+    req(data_click())
+    if (is.null(click_desc())) return()
+    df <- data_click()
+    df$id <- paste0("id_", df$id)
+    df <- df |> filter(id %in% click_desc())
+    HTML(df$descripcion)
+  })
+
+  observe({
+    if (is.null(click_info$id)) return()
+    req(data_click())
+    if (nrow(data_click()) == 0) return()
+    if (is.null(click_desc())) return()
+    req(data_modal())
+  observeEvent(input[[click_desc()]], {
+    # Al hacer clic en el actionButton, mostramos el modal
+    showModal(modalDialog(
+      title = "Descripción del hecho",
+      easyClose = TRUE,
+      footer = NULL,
+      data_modal()
+    ))
+  })
   })
 
 

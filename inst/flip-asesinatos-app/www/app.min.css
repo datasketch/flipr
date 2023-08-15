@@ -203,3 +203,40 @@ height: 30px !important;
 .buttons-group .button-style.active-btn {
   filter: grayscale(1) !important;
 }
+
+#info_click {
+ height: 700px;
+ overflow: auto;
+}
+.click-p {
+  margin-bottom: 5%;
+}
+.name-click {
+ font-weight: 700;
+ font-size: 16px;
+ line-height: 20.8px;
+}
+
+.click-body {
+ display: grid;
+ width: 250px;
+ grid-template-columns: 1.5fr 1fr;
+}
+
+.click-tl {
+ font-weight: 500;
+ line-height: 18.2px;
+ font-size: 14px;
+}
+
+.click-info {
+ font-weight: 300;
+ line-height: 18.2px;
+ font-size: 14px;
+}
+
+.action-button {
+ border-radius: 5px !important;
+ padding: 2px 6px;
+ margin-top: 3%;
+}
