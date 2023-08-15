@@ -60,7 +60,7 @@ ui <-  fluidPage(
                            div(style = "display:block;",
                                div(class = "viz-center",
                                    div(style = "margin: 10px 0px;", "DETALLE"),
-                                  verbatimTextOutput("test"),
+                                   verbatimTextOutput("test"),
                                    uiOutput("info_click")
                                )
                            )
@@ -553,12 +553,7 @@ server <- function(input, output, session) {
       })
     })
   })
-  #
-  # observeEvent(input$var_viz, {
-  #   click_desc(NULL)
-  # })
-  #
-  #
+
   data_modal <- reactive({
     if (is.null(click_info$id)) return()
     req(data_click())
@@ -575,15 +570,14 @@ server <- function(input, output, session) {
     if (nrow(data_click()) == 0) return()
     if (is.null(click_desc())) return()
     req(data_modal())
-  observeEvent(input[[click_desc()]], {
-    # Al hacer clic en el actionButton, mostramos el modal
-    showModal(modalDialog(
-      title = "Descripción del hecho",
-      easyClose = TRUE,
-      footer = NULL,
-      data_modal()
-    ))
-  })
+    observeEvent(input[[click_desc()]], {
+      showModal(modalDialog(
+        title = "Descripción del hecho",
+        easyClose = TRUE,
+        footer = NULL,
+        data_modal()
+      ))
+    })
   })
 
 
