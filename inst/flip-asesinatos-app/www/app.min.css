@@ -5,6 +5,9 @@ html, body {
   color: #252525 !important;
 }
 
+label {
+  font-weight: 400;
+}
 .load-container {
   z-index: auto !important;
 }
@@ -136,14 +139,15 @@ height: 30px !important;
   display: flex;
   align-items: baseline;
   justify-content: space-between;
-  font-weight: 700;
+  font-weight: 400;
 }
 
 .style_section {
- font-size: 1.1rem !important;
+ font-size: 1.3rem !important;
  text-transform: uppercase;
- font-weight: 200 !important;
+ font-weight: 700 !important;
  letter-spacing: 1.2px;
+ margin-bottom: 3px;
 }
 
 #output_var_viz  {

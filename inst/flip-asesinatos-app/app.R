@@ -1,5 +1,5 @@
 
-webshot::install_phantomjs(force = FALSE)
+webshot::install_phantomjs(force = TRUE)
 library(flip)
 library(httr)
 library(jsonlite)
@@ -13,7 +13,7 @@ library(dsmodules)
 library(hgchmagic) #767c3867535994f1a1fd8c24594d40db3128843d
 library(leaflet.extras)
 library(ltgeo) #dev
-
+Sys.setenv(OPENSSL_CONF="/dev/null")
 ui <-  fluidPage(
   tags$head(
     tags$link(rel="stylesheet", type="text/css", href="app.min.css"),
@@ -388,8 +388,8 @@ server <- function(input, output, session) {
     req(data_filter())
     if (nrow(data_filter()) == 0) return()
     df <- data_filter()
-    df <- df[, c("id", "nombre", "apellido","fecha_agresion", "presunto_autor", "sucedio_en_internet",
-                 "tipo_agresion","departamento", "alerta_genero", "genero","cargo")]
+    df <- df[, c( "nombre", "apellido","fecha_agresion", "presunto_autor",
+                 "departamento", "genero","cargo")]
     df
   })
 
