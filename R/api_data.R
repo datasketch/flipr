@@ -5,6 +5,7 @@ api_data <- function(url){
   respose <- GET( url )
   result <- fromJSON(content(respose, as = 'text'))
   result$fecha_agresion <- lubridate::ymd(result$fecha_agresion)
+  result$anio_agresion <- lubridate::year(result$fecha_agresion)
   result$anio_mes_agresion <- format(result$fecha_agresion, "%Y-%m")
   result$departamento[is.na(result$departamento)] <- "Sin información"
   result$genero[is.na(result$genero)] <- "Sin información"

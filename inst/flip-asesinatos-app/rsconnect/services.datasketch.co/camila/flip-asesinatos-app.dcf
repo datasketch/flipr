@@ -5,9 +5,9 @@ account: camila
 server: services.datasketch.co
 hostUrl: https://services.datasketch.co/__api__
 appId: 25
-bundleId: 176
+bundleId: 179
 url: https://services.datasketch.co/flip-asesinatos/
-when: 1692908549.6568
-lastSyncTime: 1692908549.65682
+when: 1692975481.23042
+lastSyncTime: 1692975481.23043
 asMultiple: FALSE
 asStatic: FALSE

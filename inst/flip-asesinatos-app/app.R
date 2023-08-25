@@ -32,7 +32,7 @@ ui <-  fluidPage(
       div(class = "layout-panels",
           div(class = "app-container",
               div(class = "panel top-malibu",
-                  div (class = "panel-body",
+                  div (class = "panel-body panel-filters",
                        uiOutput("controls")
                   ),
                   div(class="footer",
@@ -187,7 +187,37 @@ server <- function(input, output, session) {
                   input = input, output = output, session = session,
                   env = environment())
 
+  dic_inputs <- reactive({
+    data.frame(id = c("fechaId",
+                      "deptosId",
+                      "agresionId",
+                      "generoId",
+                      "autorId"),
+               label = c("Fecha",
+                         "Departamento",
+                         "Tipo de agresión",
+                         "Género",
+                         "Presunto autor"))
+  })
 
+  caption_text <- reactive({
+    req(dic_inputs())
+    req(input$var_viz)
+    dic <- dic_inputs()
+    htmltools::HTML(paste0(
+      lapply(1:nrow(dic), function(i) {
+        tx <- ""
+        input_change <- input[[dic$id[i]]]
+        if (input$var_viz == "departamento") {
+          if (dic$id[i] == "deptosId") input_change <- NULL
+        }
+
+        if (!is.null(input_change)) {
+          tx <- paste0("<b>", dic$label[i], ": </b>", paste0(input_change, collapse = ","), "</br>", collapse = "")
+        }
+        tx
+      }), collapse = ""))
+  })
 
   list_inputs <- reactive({
     input_genero <- input$generoId
@@ -239,14 +269,20 @@ server <- function(input, output, session) {
     req(data_filter())
     if (nrow(data_filter()) == 0) return()
     df <- data_filter()
+    var_viz <- input$var_viz
     if (input$var_viz == "anio_mes_agresion") {
-      df <- df |> drop_na(fecha_agresion)
-      #df$fecha_agresion <- as.character(df$fecha_agresion)
+      var_viz <- "anio_agresion"
+      df <- df |> drop_na(anio_mes_agresion)
+      df$anio_mes_agresion <- as.character(df$anio_mes_agresion)
+      df$anio_agresion <- as.character(df$anio_agresion)
+      if (length(unique(df$anio_agresion)) < 3) {
+        var_viz <- "anio_mes_agresion"
+      }
     }
 
     df <- dsdataprep::aggregation_data(data = df,
                                        agg = "count",
-                                       group_var = input$var_viz,
+                                       group_var = var_viz,
                                        percentage = TRUE, percentage_name = "porcentaje")
     dic <- var_dic() |> filter(id %in% input$var_viz)
     df$..labels <- paste0(dic$label, ": ", df[[1]], "<br/>
@@ -260,7 +296,7 @@ server <- function(input, output, session) {
     if (nrow(data_viz()) == 0) return()
     viz <- c("bar", "treemap", "table")
     if ("departamento" %in% names(data_viz())) viz <- c("map", viz)
-    if ("anio_mes_agresion" %in% names(data_viz())) viz <- c("line", "table")
+    if (any(c("anio_mes_agresion", "anio_agresion") %in% names(data_viz()))) viz <- c("line", "table")
     viz
   })
 
@@ -331,7 +367,7 @@ server <- function(input, output, session) {
       if (actual_but$active == "treemap") {
         opts$data_labels_inside <- TRUE
       }
-      if (!"anio_mes_agresion" %in% names(data_viz())) {
+      if (!any(c("anio_mes_agresion", "anio_agresion") %in% names(data_viz()))) {
         opts$bar_orientation <- "hor"
         opts$sort <- "desc"
       }
@@ -356,11 +392,29 @@ server <- function(input, output, session) {
 
 
   viz_down <- reactive({
-    req(data_viz())
-    req(viz_func())
-    suppressWarnings(
-      do.call(eval(parse(text = viz_func())), viz_opts())
-    )
+      req(actual_but$active)
+      if (actual_but$active == "table") return()
+      req(data_viz())
+      req(viz_func())
+      hc <- suppressWarnings(
+        do.call(eval(parse(text = viz_func())), viz_opts())
+      )
+      if (actual_but$active != "map") {
+        if (!is.null(caption_text())) {
+          hc <- hc  |>
+            hc_legend( verticalAlign = "top" ) |>
+            hc_caption(text = caption_text())
+        }
+      } else {
+        hc <- hc |>
+          addControl(title_viz(), position = "topleft", className="map-title") |>
+          leaflet::setView(lng = -74.29, lat = 3.57, 4)
+        if (!is.null(caption_text())) {
+          hc <- hc |>
+            addControl(caption_text(), position = "bottomright")
+        }
+      }
+      hc
   })
 
 
@@ -369,18 +423,15 @@ server <- function(input, output, session) {
     req(actual_but$active)
     req(data_viz())
     if (actual_but$active %in% c("table", "map")) return()
-    h <- viz_down() |>
-      hc_legend( verticalAlign = "top" )
-    h
+     viz_down()
+
   })
 
   output$lflt_viz <- leaflet::renderLeaflet({
     req(actual_but$active)
     req(data_viz())
     if (!actual_but$active %in% c("map")) return()
-    viz_down() |>
-      addControl(title_viz(), position = "topleft", className="map-title") |>
-      leaflet::setView(lng = -74.29, lat = 3.57, 4)
+    viz_down()
   })
 
 
@@ -483,12 +534,20 @@ server <- function(input, output, session) {
     req(data_filter())
     df <-  data_filter()
 
+    var_viz <- input$var_viz
+    if (input$var_viz == "anio_mes_agresion") {
+      var_viz <- "anio_agresion"
+      if (length(unique(df$anio_agresion)) < 3) {
+        var_viz <- "anio_mes_agresion"
+      }
+    }
+
     if (actual_but$active == "map") {
       df$departamento <- toupper(df$departamento)
     }
 
     df <- df |>
-      dplyr::filter(!!dplyr::sym(input$var_viz) %in% click_info$id)
+      dplyr::filter(!!dplyr::sym(var_viz) %in% click_info$id)
 
     df
   })
